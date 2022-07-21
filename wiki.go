@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -22,10 +23,13 @@ func main() {
 	log.SetPrefix("wiki: ")
 	log.SetFlags(0)
 
+	log.Print("main()")
 	http.HandleFunc("/", makeHandler(viewHandler))
 	http.HandleFunc("/view/", makeHandler(viewHandler))
 	http.HandleFunc("/edit/", makeHandler(editHandler))
 	http.HandleFunc("/save/", makeHandler(saveHandler))
+	http.HandleFunc("/liveness", liveness)
+	http.HandleFunc("/readiness", readiness)
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -35,6 +39,7 @@ func (p *Page) save() error {
 }
 
 func loadPage(title string) (*Page, error) {
+	log.Printf("loadPage()")
 	filename := "data/" + title + ".txt"
 	body, err := os.ReadFile(filename)
 	if err != nil {
@@ -97,7 +102,7 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
 		// Here wi will extract the page title from the Request,
 		// and call the provided handler 'fn'
 		m := validPath.FindStringSubmatch(r.URL.Path)
-		log.Printf("path length: %s", len(m))
+
 		if len(m) == 0 {
 			http.Redirect(w, r, "/view/FrontPage", http.StatusFound)
 			return
@@ -109,4 +114,18 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
 		}
 		fn(w, r, m[2])
 	}
+}
+
+func liveness(w http.ResponseWriter, r *http.Request) {
+	log.Print("liveness check")
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	io.WriteString(w, `{"alive": true}`)
+}
+
+func readiness(w http.ResponseWriter, r *http.Request) {
+	log.Print("readiness check")
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	io.WriteString(w, `{"ready": true}`)
 }
