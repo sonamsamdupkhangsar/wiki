@@ -15,15 +15,14 @@ type Page struct {
 	Body  []byte
 }
 
-var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
+var templates = template.Must(template.ParseFiles("tmpl/edit.html", "tmpl/view.html"))
 var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
 
 func main() {
-	p1 := &Page{Title: "TestPage", Body: []byte("This is a sample Page.")}
-	p1.save()
-	p2, _ := loadPage("TestPage")
-	fmt.Println(string(p2.Body))
+	log.SetPrefix("wiki: ")
+	log.SetFlags(0)
 
+	http.HandleFunc("/", makeHandler(viewHandler))
 	http.HandleFunc("/view/", makeHandler(viewHandler))
 	http.HandleFunc("/edit/", makeHandler(editHandler))
 	http.HandleFunc("/save/", makeHandler(saveHandler))
@@ -31,12 +30,12 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 func (p *Page) save() error {
-	filename := p.Title + ".txt"
+	filename := "data/" + p.Title + ".txt"
 	return os.WriteFile(filename, p.Body, 0600)
 }
 
 func loadPage(title string) (*Page, error) {
-	filename := title + ".txt"
+	filename := "data/" + title + ".txt"
 	body, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
@@ -59,6 +58,7 @@ func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
 	p, err := loadPage(title)
 	if err != nil {
 		http.Redirect(w, r, "/edit/"+title, http.StatusFound)
+
 		return
 	}
 	renderTemplate(w, "view", p)
@@ -97,6 +97,12 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
 		// Here wi will extract the page title from the Request,
 		// and call the provided handler 'fn'
 		m := validPath.FindStringSubmatch(r.URL.Path)
+		log.Printf("path length: %s", len(m))
+		if len(m) == 0 {
+			http.Redirect(w, r, "/view/FrontPage", http.StatusFound)
+			return
+		}
+
 		if m == nil {
 			http.NotFound(w, r)
 			return
